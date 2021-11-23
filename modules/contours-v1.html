@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Contours-v1</title>
+  <script src="js/mathbox-bundle.js"></script>
+  <script src="js/dat.gui.js"></script>
+  
+  <!-- http://silentmatt.com/javascript-expression-evaluator/ -->
+  <script src="js/parser.js"></script>
+  <!--<script src="js/parser/parser.js"></script>-->
+
+  <link rel="stylesheet" href="css/mathbox.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  <style>
+	#bgcolor {
+		height: 97vh;
+		background: rgb(22,73,125);
+		background: linear-gradient(90deg, rgba(22,73,125,1) 0%, rgba(11,11,38,1) 50%, rgba(22,73,125,1) 100%);
+		align: center;
+	}
+</style>
+</head>
+<!-- 3D surface graph with custom equation and a couple contour lines -->
+<!-- using mathbox js and three js libraries, optimised for WebGL-supported browsers  -->
+
+<body>
+<div id="bgcolor">
+
+  <script>
+    var element =  document.querySelector('#bgcolor');
+	
+    mathbox = mathBox({ element: element,
+      plugins: ['VR', 'ui', 'controls'],
+      controls: {
+        klass: THREE.VRControls
+      },
+    });
+    if (mathbox.fallback) throw "WebGL not supported"
+
+	var graphData, view;
+	
+	var functionText = "sqrt(x^2+y^2)";
+	
+	var c = 1, c2 = 2, customC = 3;
+	var	xMin = -4, xMax = 4, yMin = -4,	yMax = 4, zMin = -2, zMax = 2;
+	
+	var zAutofit = true;
+	
+	
+	
+	// start of displayGraph function ==============================================================
+	var displayGraphFunc = function() 
+	{ 
+		var zFunc = Parser.parse( functionText ).toJSFunction( ['x','y'] );
+		
+		graphData.set("expr", 
+		    function (emit, x, y, i, j, t) 
+			{ 
+			    emit( x, zFunc(x,y), y );
+			}
+		);
+		
+		if (zAutofit)
+		{
+			var xStep = (xMax - xMin) / 256;
+			var yStep = (yMax - yMin) / 256;
+			var zSmallest = zFunc(xMin, yMin);
+			var zBiggest  = zFunc(xMin, yMin);
+			for (var x = xMin; x <= xMax; x += xStep)
+			{
+				for (var y = yMin; y <= yMax; y += yStep)
+				{
+					var z = zFunc(x,y);
+					if (z < zSmallest) zSmallest = z;
+					if (z > zBiggest)  zBiggest  = z;
+				}
+			}
+			zMin = zSmallest;
+			zMax = zBiggest;
+		}
+				
+		view.set("range", [[xMin, xMax], [zMin,zMax], [yMin, yMax]]); 
+		
+		//set the graph color to rainbow that dynamically changes with value
+		graphColors.set("expr", 
+				function (emit, x, y, i, j, t) 
+				{ 
+					var z = zFunc(x,y);
+					var percent = (z - 1.2 * zMin) / (zMax - 1.2 * zMin);
+					var color = new THREE.Color( 0xffffff );
+					color.setHSL( 1-percent, 1, 0.5 );
+					emit( color.r, color.g, color.b, 0.7 ); //last one is the alpha (transparency) setting
+				}
+			);
+		
+	}
+	
+	// end of displayGraph function ==============================================================
+	
+	// start of displayContour function ==============================================================
+	
+	var displayContourFunc = function ()
+	{
+		zFunc = Parser.parse( functionText ).toJSFunction( ['x','y'] );
+		
+		vertexArray = [];
+		edgeArray = [];
+		
+		vertexArray = marchingSquares( xMin, xMax, yMin, yMax, zFunc, c, 256 );
+		
+		for (var n = 0; n < vertexArray.length; n += 2)
+		{
+			edgeArray.push( vertexArray[n], vertexArray[n+1] );
+		}
+		edgeData.set( "width", edgeArray.length/2 );
+		edgeData.set( "data", edgeArray );
+		
+		
+		vertexArray2 = [];
+		edgeArray2 = [];
+		
+		vertexArray2 = marchingSquares( xMin, xMax, yMin, yMax, zFunc, c2, 256 );
+		
+		for (var n = 0; n < vertexArray2.length; n += 2)
+		{
+			edgeArray2.push( vertexArray2[n], vertexArray2[n+1] );
+		}
+		edgeData2.set( "width", edgeArray2.length/2 );
+		edgeData2.set( "data", edgeArray2 );
+		
+		
+		vertexArray3 = [];
+		edgeArray3 = [];
+		
+		vertexArray3 = marchingSquares( xMin, xMax, yMin, yMax, zFunc, customC, 256 );
+		
+		for (var n = 0; n < vertexArray3.length; n += 2)
+		{
+			edgeArray3.push( vertexArray3[n], vertexArray3[n+1] );
+		}
+		edgeData3.set( "width", edgeArray3.length/2 );
+		edgeData3.set( "data", edgeArray3 );
+		
+	}
+	
+	// end of displayContour function ==============================================================
+	
+	var displayGraph = function() { displayGraphFunc(); };
+	
+	
+	// setting proxy:true allows interactive controls to override base position
+	var camera = mathbox.camera( { proxy: true, position: [4,2,4] } );
+
+	 // save as variable to adjust later
+    view = mathbox.cartesian(
+	  {
+        range: [[xMin, xMax], [yMin, yMax], [zMin,zMax]],
+        scale: [2,1,-2],
+      }
+	);
+
+	// axes
+	var xAxis = view.axis( {axis: 1, width: 8, detail: 40, color:"deeppink"} );
+    var xScale = view.scale( {axis: 1, divide: 5, nice:true, zero:true} );
+    var xTicks = view.ticks( {width: 5, size: 15, color: "deeppink", zBias:2} );
+    var xFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: xScale} );
+    var xTicksLabel = view.label( {color: "deeppink", zIndex: 0, offset:[0,-20], outline: 0, size: 14, points: xScale, text: xFormat} );
+	
+	var yAxis = view.axis( {axis: 3, width: 8, detail: 40, color:"greenyellow"} );
+    var yScale = view.scale( {axis: 3, divide: 5, nice:true, zero:false} );
+    var yTicks = view.ticks( {width: 5, size: 15, color: "greenyellow", zBias:2} );
+    var yFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: yScale} );
+    var yTicksLabel = view.label( {color: "greenyellow", zIndex: 0, offset:[0,-20], outline: 0, size: 14, points: yScale, text: yFormat} );
+	
+	var zAxis = view.axis( {axis: 2, width: 8, detail: 40, color:"cyan"} );
+    var zScale = view.scale( {axis: 2, divide: 5, nice:true, zero:false} );
+    var zTicks = view.ticks( {width: 5, size: 15, color: "cyan", zBias:2} );
+    var zFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: zScale} );
+    var zTicksLabel = view.label( {color: "cyan", zIndex: 0, offset:[20,0], outline: 0, size: 14, points: zScale, text: zFormat} );
+	  
+	// axis end labels (x, y only)
+	var xLabelText = view.text( {width:1, data:["x"], font: "Helvetica", style: "normal"} );
+	var xLabelPoint = view.array( {width:1, channels:3, data:[ [xMax,0,0] ]} );
+	var xLabelDisplay = view.label( {text: xLabelText, points: xLabelPoint,
+      size: 18, color: "deeppink", outline: 0, offset: [20, 10], zIndex: 1} );
+	  
+	var yLabelText = view.text( {width:1, data:["y"], font: "Helvetica", style: "normal"} );
+	var yLabelPoint = view.array( {width:1, channels:3, data:[ [0,0,yMax] ]} );
+	var yLabelDisplay = view.label( {text: yLabelText, points: yLabelPoint,
+      size: 18, color: "greenyellow", outline: 0, offset: [-10, 20], zIndex: 1} );
+	  
+	  
+	view.grid( {axes:[1,3], width: 2, divideX: 20, divideY: 20, opacity:0.25} );
+	
+	
+	// discrete graph
+	var vertexArray = [];
+	var edgeArray = [];
+	
+	var vertexArray2 = [];
+	var edgeArray2 = [];
+	
+	var vertexArray3 = [];
+	var edgeArray3 = [];
+	
+	// draw the links
+    var edgeData = view.array({
+		width: edgeArray.length/2,
+		items: 2,    // two vertices per segment...
+		channels: 3, // graphed in 3D
+		data: edgeArray,
+    });
+	
+	// draw the links
+    var edgeData2 = view.array({
+		width: edgeArray2.length/2,
+		items: 2,    // two vertices per segment...
+		channels: 3, // graphed in 3D
+		data: edgeArray2,
+    });
+	
+	// draw the links
+    var edgeData3 = view.array({
+		width: edgeArray3.length/2,
+		items: 2,    // two vertices per segment...
+		channels: 3, // graphed in 3D
+		data: edgeArray3,
+    });
+	
+	
+	var edgeView = view.vector({
+		points: edgeData, 
+		color:"cyan", width:8, start:false, visible:contourLineVisible
+	});
+	
+	var edgeView2 = view.vector({
+		points: edgeData2, 
+		color:"cyan", width:8, start:false, visible:contourLineVisible
+	});
+	
+	var edgeView3 = view.vector({
+		points: edgeData3, 
+		color:"cyan", width:10, start:false, visible:true
+	});
+	
+	var graphData = view.area({
+		axes: [1,3], channels: 3, width: 64, height: 64,
+        expr: function (emit, x, y, i, j, t)
+		{
+		  var z = x*y;
+          emit( x, y, z );
+        },
+    });
+	
+	// actuall emitter set later.
+	var graphColors = view.area({
+		expr: function (emit, x,y, i,j, t) 
+		{
+			if (x < 0)
+				emit(1.0, 0.0, 0.0, 1.0);
+		    else
+				emit(0.0, 1.0, 0.0, 1.0);
+		},
+		axes: [1,3],
+		width:  64, height: 64,
+		channels: 4, // RGBA
+    });
+	
+	var contourLineVisible = false;
+		
+
+	var graphViewVisible = false;
+	var graphViewSolid = view.surface({
+		points:graphData, 
+		color:"#FFFFFF", shaded:false, fill:true, lineX:false, lineY:false, colors:graphColors, visible:graphViewVisible, width:0
+	});
+	
+	var zPlaneData = view.area({
+        axes: [1,3], channels: 3, width: 64, height: 64,
+		expr: function (emit, x, y, i, j, t)
+		{
+          emit( x, c, y );
+        },
+    });
+	var zPlaneView = view.surface({
+		shaded:false, color: "#888888", points:zPlaneData, visible:contourLineVisible, opacity:0.4, zWrite:false
+	});
+	
+	var zPlaneData2 = view.area({
+        axes: [1,3], channels: 3, width: 64, height: 64,
+		expr: function (emit, x, y, i, j, t)
+		{
+          emit( x, c2, y );
+        },
+    });
+	var zPlaneView2 = view.surface({
+		shaded:false, color: "#888888", points:zPlaneData2, visible:contourLineVisible, opacity:0.4, zWrite:false
+	});
+	
+	
+
+
+	
+	function marchingSquares(xMin, xMax, yMin, yMax, zFunc, c, resolution)
+	{
+		var xStep = (xMax - xMin) / resolution;
+		var yStep = (yMax - yMin) / resolution;
+		var points = [];
+		for (var x = xMin; x < xMax; x += xStep)
+		{
+			for (var y = yMin; y < yMax; y += yStep)
+			{
+				var z1 = zFunc(x,y);				// bottom left corner
+				var z2 = zFunc(x+xStep, y);			// bottom right corner
+				var z4 = zFunc(x+xStep, y+yStep);	// top right corner
+				var z8 = zFunc(x, y+yStep);			// top left corner
+				var n = 0;
+				if (z1 > c) n += 1;
+				if (z2 > c) n += 2;
+				if (z4 > c) n += 4;
+				if (z8 > c) n += 8;
+				
+				// calculate linear interpolation values along the given sides.
+				//  to simplify, could assume each is 0.5*xStep or 0.5*yStep accordingly.
+				var bottomInterp 	= (c - z1) / (z2 - z1) * xStep;
+				var topInterp 		= (c - z8) / (z4 - z8) * xStep;
+				var leftInterp 		= (c - z1) / (z8 - z1) * yStep;
+				var rightInterp 	= (c - z2) / (z4 - z2) * yStep;
+				
+				// for a visual diagram of cases: https://en.wikipedia.org/wiki/Marching_squares
+				if (n == 1 || n == 14) // lower left corner
+					points.push( [x, c, y+leftInterp], [x+bottomInterp, c, y] );
+					
+				else if (n == 2 || n == 13) // lower right corner
+					points.push( [x+bottomInterp, c, y], [x+xStep, c, y+rightInterp] );
+					
+				else if (n == 4 || n == 11) // upper right corner
+					points.push( [x+topInterp, c, y+yStep], [x+xStep, c, y+rightInterp] );
+					
+				else if (n == 8 || n == 7) // upper left corner
+					points.push( [x, c, y+leftInterp], [x+topInterp, c, y+yStep] );
+					
+				else if (n == 3 || n == 12) // horizontal
+					points.push( [x, c, y+leftInterp], [x+xStep, c, y+rightInterp] );
+					
+				else if (n == 6 || n == 9) // vertical
+					points.push( [x+bottomInterp, c, y], [x+topInterp, c, y+yStep] );
+					
+				else if (n == 5) // should do subcase // lower left & upper right
+					points.push( [x, c, y+leftInterp], [x+bottomInterp, c, y], [x+topInterp, c, y+yStep], [x+xStep, c, y+rightInterp] );
+					
+				else if (n == 10) // should do subcase // lower right & upper left
+					points.push( [x+bottomInterp, c, y], [x+xStep, c, y+rightInterp], [x, c, y+yStep/2], [x, c, y+leftInterp], [x+topInterp, c, y+yStep] );
+					
+				else if (n == 0 || n == 15) // no line segments appear in this grid square.
+					points.push();
+				
+			}
+		}
+		return points;
+	
+	}
+	
+	// Don't forget to call display graph and contour functions,
+	// otherwise they won't appear
+		
+	displayGraphFunc();
+	displayContourFunc();
+			
+
+    // GUI controls
+	
+	var gui = new dat.GUI(); //check if we put this in displaygraphfunc, would it reset the entire GUI?
+	
+	gui.add( this, 'functionText' ).name('z = f(x,y) = ');
+	gui.add( this, 'displayGraph' ).name("Update Graph");
+	
+	
+
+	var contourLineVisibleGUI = gui.add( this, "contourLineVisible" ).name("View line at z=1").onChange(
+		function()
+		{
+			edgeView.set("visible", contourLineVisible);
+			zPlaneView.set("visible", contourLineVisible);
+		}
+	);
+	
+	var contourLineVisibleGUI = gui.add( this, "contourLineVisible" ).name("View line at z=2").onChange(
+		function()
+		{
+			
+			edgeView2.set("visible", contourLineVisible);
+			zPlaneView2.set("visible", contourLineVisible);
+		}
+	);
+	
+	
+	var folder0 = gui.addFolder ('Custom z value');
+	folder0.open();
+	
+
+	var customCGUI = folder0.add( this, 'customC' ).min(-10).max(10).step(1).name('z = c = ');
+	customCGUI.onFinishChange( displayContourFunc );
+	
+	var graphViewVisibleGUI = gui.add( this, "graphViewVisible" ).name("View graph").onChange(
+		function()
+		{
+			graphViewSolid.set("visible", graphViewVisible);
+		}
+	);
+	
+
+	
+	</script>
+
+</div>
+</body>
+</html>

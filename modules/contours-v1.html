@@ -388,7 +388,7 @@
 	
 	
 
-	var contourLineVisibleGUI = gui.add( this, "contourLineVisible" ).name("View line at z=1").onChange(
+	var contourLineVisibleGUI = gui.add( this, "contourLineVisible" ).name("Contour at z=1").onChange(
 		function()
 		{
 			edgeView.set("visible", contourLineVisible);
@@ -396,7 +396,7 @@
 		}
 	);
 	
-	var contourLineVisibleGUI = gui.add( this, "contourLineVisible" ).name("View line at z=2").onChange(
+	var contourLineVisibleGUI = gui.add( this, "contourLineVisible" ).name("Contour at z=2").onChange(
 		function()
 		{
 			
@@ -406,7 +406,7 @@
 	);
 	
 	
-	var folder0 = gui.addFolder ('Custom z value');
+	var folder0 = gui.addFolder ('Contour with custom z value');
 	folder0.open();
 	
 

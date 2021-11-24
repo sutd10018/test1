@@ -317,21 +317,21 @@
 	gui.add( this, 'displayGraph' ).name("Update Graph");
 
 
-	gui.add( this, "contourLineVisible" ).name("View line at z=0").onChange(
+	gui.add( this, "contourLineVisible" ).name("Contour at z=0").onChange(
 		function()
 		{
 			edgeView.set("visible", contourLineVisible);
 		}
 	);
 	
-	gui.add( this, "contourLineVisible" ).name("View line at z=5").onChange(
+	gui.add( this, "contourLineVisible" ).name("Contour at z=5").onChange(
 		function()
 		{
 			edgeView2.set("visible", contourLineVisible);
 		}
 	);
 	
-	gui.add( this, "contourLineVisible" ).name("View line at z=8").onChange(
+	gui.add( this, "contourLineVisible" ).name("Contour at z=8").onChange(
 		function()
 		{
 			edgeView3.set("visible", contourLineVisible);

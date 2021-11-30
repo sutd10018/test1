@@ -2,10 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Partial Derivatives</title>
+  <title>Partial derivatives</title>
+  
+	<!-- modified from https://github.com/unconed/mathbox -->
   <script src="js/mathbox-bundle.js"></script>
   <script src="js/dat.gui.js"></script>
-  <script src="js/datguivr.js"></script>
   
   <!-- http://silentmatt.com/javascript-expression-evaluator/ -->
   <script src="js/parser.js"></script>
@@ -20,46 +21,121 @@
 		background: linear-gradient(90deg, rgba(22,73,125,1) 0%, rgba(11,11,38,1) 50%, rgba(22,73,125,1) 100%);
 		align: center;
 	}
-</style>
+	</style>
 </head>
+
+
 <body>
 <div id="bgcolor">
 
   <script>
-    var element =  document.querySelector('#bgcolor');
+ 
+	<!-- START OF SCENE SETUP ==================================================================== -->
+	// includes mathbox VR setup, axes, and graph color settings
 	
-	mathbox = mathBox({ element: element,
+	var element =  document.querySelector('#bgcolor'); //place the graph within custom Div
+	
+	var mathbox = mathBox({ element: element,
       plugins: ['VR', 'ui', 'controls'],
       controls: {
         klass: THREE.VRControls
       },
     });
     if (mathbox.fallback) throw "WebGL not supported"
+	
+	// setting proxy:true allows interactive controls to override base position
+	var camera = mathbox.camera( { proxy: true, position: [4,2,4] } );
+	
+    var view = mathbox.cartesian(
+	  {
+        range: [[xMin, xMax], [yMin, yMax], [zMin,zMax]],
+		//scale for y axis - here in z, should be negative since original mathbox yAxis (on z) is flipped
+        scale: [2,1,-2],
+      }
+	);
 
-	var graphData, view;
+	<!-- Axis settings -->
+	var xAxis = view.axis( {axis: 1, width: 8, detail: 40, color:"deeppink"} );
+    var xScale = view.scale( {axis: 1, divide: xMax, nice:true, zero:true} );
+    var xTicks = view.ticks( {width: 5, size: 15, color: "deeppink", zBias:2} );
+    var xFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: xScale} );
+    var xTicksLabel = view.label( {color: "deeppink", zIndex: 0, offset:[0,-20], outline: 0, size: 14, points: xScale, text: xFormat} );
 	
-	var functionText = "x^2*y";
+	var yAxis = view.axis( {axis: 3, width: 8, detail: 40, color:"greenyellow"} );
+    var yScale = view.scale( {axis: 3, divide: yMax, nice:true, zero:false} );
+    var yTicks = view.ticks( {width: 5, size: 15, color: "greenyellow", zBias:2} );
+    var yFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: yScale} );
+    var yTicksLabel = view.label( {color: "greenyellow", zIndex: 0, offset:[-20,0], outline: 0, size: 14, points: yScale, text: yFormat} );
 	
-	//var pointText = "(1,1)";
-	var xPoint = 0, yPoint = 0;
-	var traceX, traceY, traceZ;
+	var zAxis = view.axis( {axis: 2, width: 8, detail: 40, color:"cyan"} );
+    var zScale = view.scale( {axis: 2, divide: zMax, nice:true, zero:false} );
+    var zTicks = view.ticks( {width: 5, size: 15, color: "cyan", zBias:2} );
+    var zFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: zScale} );
+    var zTicksLabel = view.label( {color: "cyan", zIndex: 0, offset:[20,0], outline: 0, size: 14, points: zScale, text: zFormat} );
 	
-	var theta = 0.78;
+	// axis end labels
+	var xLabelText = view.text( {width:1, data:["x"], font: "Helvetica", style: "normal"} );
+	var xLabelPoint = view.array( {width:1, channels:3, data:[ [xMax,0,0] ]} );
+	var xLabelDisplay = view.label( {text: xLabelText, points: xLabelPoint,
+      size: 18, color: "deeppink", outline: 0, offset: [20, 10], zIndex: 1} );
+	  
+	var yLabelText = view.text( {width:1, data:["y"], font: "Helvetica", style: "normal"} );
+	var yLabelPoint = view.array( {width:1, channels:3, data:[ [0,0,yMax] ]} );
+	var yLabelDisplay = view.label( {text: yLabelText, points: yLabelPoint,
+      size: 18, color: "greenyellow", outline: 0, offset: [-10, 20], zIndex: 1} );
+	  
+	// view semi-transparent grid at z=0
+	view.grid( {axes:[1,3], width: 2, divideX: 20, divideY: 20, opacity:0.25} );
 	
-	var	xMin = -5, xMax = 5, yMin = -5,	yMax = 5, zMin = -5, zMax = 5;
+	 
+	<!-- graph Color setting -->
+	var graphData = view.area({
+		axes: [1,3], channels: 3, width: 64, height: 64,
+        expr: function (emit, x, y, i, j, t)
+		{
+		  var z = x*y;
+          emit( x, z, y );
+        },
+    });
 	
-	var zAutofit = false;
+	// actual emitter set in displayGraph function
+	var graphColors = view.area({
+		expr: function (emit, x,y, i,j, t) 
+		{
+			if (x < 0)
+				emit(1.0, 0.0, 0.0, 1.0);
+		    else
+				emit(0.0, 1.0, 0.0, 1.0);
+		},
+		axes: [1,3],
+		width:  64, height: 64,
+		channels: 4, // RGBA
+    });
 	
-	//var zFunc = Parser.parse( functionText ).toJSFunction( ['x','y'] );
+	var graphViewSolid = view.surface({
+		points:graphData, 
+		color:"#FFFFFF", shaded:false, fill:true, lineX:false, lineY:false, colors:graphColors, visible:true, width:0
+	});
 	
-	// start of displayGraph function ==============================================================
+	<!-- END OF SCENE SETUP ============================================================= -->
+	
+	<!-- START OF DISPLAY GRAPH SETTING ==================================================== -->
+	// to display the basic graph
+	 
+	var functionText = "x^2*y"; // the function to parse
+	
+	// set display range
+	var	xMin = -8, xMax = 8, yMin = -8,	yMax = 8, zMin = -10, zMax = 10;
+	var zAutofit = true; //set false for now so that users can input negative exp equation (eg 1/xy)
+	
+	
 	var displayGraphFunc = function() 
 	{ 
-		var zFunc = Parser.parse( functionText ).toJSFunction( ['x','y'] );
+		var f = Parser.parse( functionText ).toJSFunction( ['x','y'] );
 		graphData.set("expr", 
-		    function (emit, x, y, i, j, t) 
+		    function (emit, x, y, i, j, time) 
 			{ 
-			    emit( x, zFunc(x,y), y );
+			    emit( x, f(x,y), y );
 			}
 		);
 		
@@ -67,13 +143,13 @@
 		{
 			var xStep = (xMax - xMin) / 256;
 			var yStep = (yMax - yMin) / 256;
-			var zSmallest = zFunc(xMin, yMin);
-			var zBiggest  = zFunc(xMin, yMin);
+			var zSmallest = f(xMin, yMin);
+			var zBiggest  = f(xMin, yMin);
 			for (var x = xMin; x <= xMax; x += xStep)
 			{
 				for (var y = yMin; y <= yMax; y += yStep)
 				{
-					var z = zFunc(x,y);
+					var z = f(x,y);
 					if (z < zSmallest) zSmallest = z;
 					if (z > zBiggest)  zBiggest  = z;
 				}
@@ -85,48 +161,48 @@
 	
 		view.set("range", [[xMin, xMax], [zMin,zMax], [yMin, yMax]]); 
 		
-		//set the graph color to rainbow that dynamically changes with value
-		//use HSL so it's easier to scale (use percent) instead of RGB
+		//set the graph color to greenish hue
 		graphColors.set("expr", 
-				function (emit, x, y, i, j, t) 
+				function (emit, x, y, i, j, time) 
 				{ 
-					var z = zFunc(x,y);
-					var percent = (z - 1.2 * zMin) / (zMax - 1.2 * zMin);
-					var color = new THREE.Color( 0xffffff );
-					color.setHSL( 1-percent, 1, 0.5 );
-					emit( color.r, color.g, color.b, 0.7 ); //last one is the alpha (transparency) setting
+					var z = f(x,y);
+					var percent = (z - zMin) / (zMax - zMin);
+					emit( percent, percent, percent, 0.8 );
 				}
-			);
+			);	
 		
- ////this still doesn't reset to default values
-		yPlaneVisible = false;
-		xPlaneVisible = false;
-		xPoint = 0;
-		yPoint = 0;
 	}
 	
+	<!-- END OF DISPLAY GRAPH SETTING ===================================================== -->
+   
+   
+   <!-- START OF DISPLAY DERIVATIVES SETTING ===================================================== -->
+
+	var xPoint = 0, yPoint = 0;
+	var traceX, traceY, traceZ;
+
 	
-	var displayCurvePlaneFunc = function ()
+	var displayDerivativesFunc = function ()
 	
 	{
-		zFunc = Parser.parse( functionText ).toJSFunction( ['x','y'] );
+		f = Parser.parse( functionText ).toJSFunction( ['x','y'] );
 		
 		traceX = xPoint;
 		traceY = yPoint;
-		traceZ = zFunc(traceX, traceY);
+		traceZ = f(traceX, traceY);
 		tracePointData.set("data", [ [traceX, traceZ, traceY] ] );
 
 		xCurveData.set("expr", 
 		    function (emit, x, i, t) 
 			{ 
-			    emit( x, zFunc(x,traceY), traceY );
+			    emit( x, f(x,traceY), traceY );
 			}
 		);
 
 		yCurveData.set("expr", 
 		    function (emit, y, j, t) 
 			{ 
-			    emit( traceX, zFunc(traceX,y), y );
+			    emit( traceX, f(traceX,y), y );
 			}
 		);
 		
@@ -144,7 +220,7 @@
 		// currently the second vectorhead is to make a line facing the other way
 		var dx = 0.00001;
 		var dy = 0; // held constant for now
-		var dz = zFunc(traceX + dx, traceY + dy) - zFunc(traceX, traceY);
+		var dz = f(traceX + dx, traceY + dy) - f(traceX, traceY);
 		// slope vector is [dx/dx, dy/dx, dz/dx] = [1,0,dz/dx]. Don't forget to switch y&z in graph.
 		var xVectorHead = [traceX + scale * dx/dx, traceZ + scale * dz/dx, traceY + scale * dy/dx];
 		var xVectorHead2 = [traceX - scale * dx/dx, traceZ - scale * dz/dx, traceY + scale * dy/dx];
@@ -156,7 +232,7 @@
 		// calculate partial derivative for y (x held constant)
 		dx = 0;
 		dy = 0.00001;
-		dz = zFunc(traceX + dx, traceY + dy) - zFunc(traceX, traceY);
+		dz = f(traceX + dx, traceY + dy) - f(traceX, traceY);
 		// slope vector is [dx/dx, dy/dx, dz/dx] = [0,1,dz/dy]. Don't forget to switch y&z in graph.
 		var yVectorHead = [traceX + scale * dx/dy, traceZ + scale * dz/dy, traceY + scale * dy/dy];
 		var yVectorHead2 = [traceX + scale * dx/dy, traceZ - scale * dz/dy, traceY - scale * dy/dy];
@@ -166,99 +242,10 @@
 		var slopeY = dz/dy;
 		
 		
-		
-		
 	}
 	
-	// end of displayGraph function ==============================================================
-	
-	var displayGraph = function() { displayGraphFunc(); };
-	var displayCurvePlane = function() { displayCurvePlaneFunc(); };
-	
-	// setting proxy:true allows interactive controls to override base position
-	var camera = mathbox.camera( { proxy: true, position: [4,2,4] } );
-
-	 // save as variable to adjust later
-    view = mathbox.cartesian(
-	  {
-        range: [[xMin, xMax], [yMin, yMax], [zMin,zMax]],
-        scale: [2,1,-2],
-      }
-	);
-
-	// axes
-	var xAxis = view.axis( {axis: 1, width: 8, detail: 40, color:"deeppink"} );
-    var xScale = view.scale( {axis: 1, divide: 5, nice:true, zero:true} );
-    var xTicks = view.ticks( {width: 5, size: 15, color: "deeppink", zBias:2} );
-    var xFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: xScale} );
-    var xTicksLabel = view.label( {color: "deeppink", zIndex: 0, offset:[0,-20], outline: 0, size: 14, points: xScale, text: xFormat} );
-	
-	var yAxis = view.axis( {axis: 3, width: 8, detail: 40, color:"greenyellow"} );
-    var yScale = view.scale( {axis: 3, divide: 5, nice:true, zero:false} );
-    var yTicks = view.ticks( {width: 5, size: 15, color: "greenyellow", zBias:2} );
-    var yFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: yScale} );
-    var yTicksLabel = view.label( {color: "greenyellow", zIndex: 0, offset:[0,-20], outline: 0, size: 14, points: yScale, text: yFormat} );
-	
-	var zAxis = view.axis( {axis: 2, width: 8, detail: 40, color:"cyan"} );
-    var zScale = view.scale( {axis: 2, divide: 5, nice:true, zero:false} );
-    var zTicks = view.ticks( {width: 5, size: 15, color: "cyan", zBias:2} );
-    var zFormat = view.format( {digits: 2, font:"Helvetica", style: "normal", source: zScale} );
-    var zTicksLabel = view.label( {color: "cyan", zIndex: 0, offset:[20,0], outline: 0, size: 14, points: zScale, text: zFormat} );
-	 
-	// axis end labels (x, y only)
-	var xLabelText = view.text( {width:1, data:["x"], font: "Helvetica", style: "normal"} );
-	var xLabelPoint = view.array( {width:1, channels:3, data:[ [xMax,0,0] ]} );
-	var xLabelDisplay = view.label( {text: xLabelText, points: xLabelPoint,
-      size: 18, color: "deeppink", outline: 0, offset: [20, 10, 20], zIndex: 1} );
-	  
-	var yLabelText = view.text( {width:1, data:["y"], font: "Helvetica", style: "normal"} );
-	var yLabelPoint = view.array( {width:1, channels:3, data:[ [0,0,yMax] ]} );
-	var yLabelDisplay = view.label( {text: yLabelText, points: yLabelPoint,
-      size: 18, color: "greenyellow", outline: 0, offset: [-10, 20, -20], zIndex: 1} );
-	
-	view.grid( {axes:[1,3], width: 2, divideX: 20, divideY: 20, opacity:0.25} );
-	
-	var graphData = view.area({
-		axes: [1,3], channels: 3, width: 64, height: 64,
-        expr: function (emit, x, y, i, j, t)
-		{
-		  var z = x*y;
-          emit( x, z, y );
-        },
-    });
-	
-	// actual emitter set later.
-	var graphColors = view.area({
-		expr: function (emit, x,y, i,j, t) 
-		{
-			if (x < 0)
-				emit(1.0, 0.0, 0.0, 1.0);
-		    else
-				emit(0.0, 1.0, 0.0, 1.0);
-		},
-		axes: [1,3],
-		width:  64, height: 64,
-		channels: 4, // RGBA
-    });
-		
-		
-
-	// create graph in two parts, because want solid and wireframe to be different colors
-	// shaded:false for a solid color (curve appearance provided by mesh)
-	// width: width of line mesh
-	// note: colors will mult. against color value, so set color to white (#FFFFFF) to let colors have complete control.
-	
-	
-	var graphViewSolid = view.surface({
-		points:graphData, 
-		color:"#FFFFFF", shaded:false, fill:true, lineX:false, lineY:false, colors:graphColors, visible:true, width:0
-	});
-	
-
 	// plot a point on the graph.
 	
-	// use data: instead of expr: because it is a single value, no need to calculate via expr.
-	// actual value of data set later (requires zFunction to be parsed)
 	var tracePointData = view.array({
 		width: 3, channels: 3,		
 		data: [ [1,2,3] ],
@@ -266,11 +253,11 @@
 	  
 	// make point display optional (default is false)
 	var pointVisible = true;
-	var tracePointView = view.point( {size: 30, color: "white", points:tracePointData, visible: pointVisible} );
+	var tracePointView = view.point( {size: 40, color: "white", points:tracePointData, visible: pointVisible} );
 	
-	// draw curves on surface, in a plane parallel to axis, through trace point.
-	// view is an area; to get just one coordinate, set axis:value.
-	// expr: will be set later (require zFunction to be parsed)
+	
+	
+	// draw curves on surface, in a plane parallel to axis, through trace point
 	var xCurveData = view.interval({
 		axis: 1, channels: 3, width: 64,
 	});
@@ -278,20 +265,19 @@
 		axis: 3, channels: 3, width: 64,
 	});
 	
-	//var xCurveVisible = false;
+
 	var xCurveView = view.line({
 		points: xCurveData,
-		color: "darkred", width: 16, visible: xPlaneVisible,
+		color: "darkred", width: 10, visible: xPlaneVisible, zIndex:1
 	});
-	//var yCurveVisible = false;
+
 	var yCurveView = view.line({
 		points: yCurveData,
-		color: "darkgreen", width: 16, visible: yPlaneVisible,
+		color: "darkblue", width: 10, visible: yPlaneVisible, zIndex:1
 	});
 	
 	// draw planes through surface, parallel to axis, through trace point
-	// small width/height values because it is a flat rectangle; no high resolution needed
-	// x,z variable; y constant.
+
 	var xPlaneData = view.area({
         axes: [1,5], channels: 3, width: 2, height: 2,
 		expr: function (emit, x, z, i, j, t)
@@ -303,7 +289,7 @@
 	var xPlaneVisible = false;
 	var xPlaneView = view.surface({
 		points: xPlaneData, 
-		color: "#FFCCCC", visible:xPlaneVisible, opacity:0.5, zWrite:false
+		color: "pink", visible:xPlaneVisible, opacity:0.5, zWrite:false
 	});
 	
 	var yPlaneData = view.area({
@@ -316,7 +302,7 @@
 	var yPlaneVisible = false;
 	var yPlaneView = view.surface({
 		points :yPlaneData,
-		color: "#CCFFCC", visible:yPlaneVisible, opacity:0.5, zWrite:false
+		color: "skyblue", visible:yPlaneVisible, opacity:0.5, zWrite:false
 	});
 	
 	// create data and view for partial derivatives in x and y and theta directions
@@ -344,30 +330,30 @@
 	var xDerivVisible = false;
 	var xDerivView = view.vector({
 		points: xDerivData,
-		color: "fuchsia", width: 4, start: false, visible:xDerivVisible
+		color: "fuchsia", width: 12, start: false, visible:xDerivVisible, zIndex:2
 	});
 	var xDerivView2 = view.vector({
 		points: xDerivData2,
-		color: "fuchsia", width: 4, start: false, visible:xDerivVisible
+		color: "fuchsia", width: 12, start: false, visible:xDerivVisible, zIndex:2
 	});
 	var yDerivVisible = false;
 	var yDerivView = view.vector({
 		points: yDerivData,
-		color: "chartreuse", width: 4, start: false, visible:yDerivVisible
+		color: "cyan", width: 12, start: false, visible:yDerivVisible, zIndex:2
 	});
 	var yDerivView2 = view.vector({
 		points: yDerivData2,
-		color: "chartreuse", width: 4, start: false, visible:yDerivVisible
+		color: "cyan", width: 12, start: false, visible:yDerivVisible, zIndex:2
 	});
 	
 	
-	
-    // GUI controls
+	<!-- START OF GUI SETTING ===================================================== -->
+	// to control the parameters for displaying the graph
 	
 	var gui = new dat.GUI();
 	
 	gui.add( this, 'functionText' ).name('z = f(x,y) = ');
-	gui.add( this, 'displayGraph' ).name("Update Graph");
+	gui.add( this, 'displayGraphFunc' ).name("Update Graph");
 
 //bug --> when Display graph is clicked, there is still left over from the previous graph's curve and plan
 //need to set up so that when Display graph is clicked, planes are reset back to not visible and points are back to 0,0
@@ -403,10 +389,10 @@
 	 );
 	
 	var xPointGUI = gui.add( this, 'xPoint' ).min(xMin).max(xMax).step(0.01).name('x0 = ');
-	xPointGUI.onChange( displayCurvePlaneFunc );
+	xPointGUI.onChange( displayDerivativesFunc );
 
 	var yPointGUI = gui.add( this, 'yPoint' ).min(yMin).max(yMax).step(0.01).name('y0 = ');
-	yPointGUI.onChange( displayCurvePlaneFunc );
+	yPointGUI.onChange( displayDerivativesFunc );
 	
 
 	gui.add( this, "pointVisible" ).name("Show (x0,y0)").onChange(
@@ -416,9 +402,10 @@
 		}
 	);
 	
-	
+	<!-- ON LOAD ===================================================== -->
+		
 	displayGraphFunc();
-	displayCurvePlaneFunc();
+	displayDerivativesFunc();
 	
 	</script>
 

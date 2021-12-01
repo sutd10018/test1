@@ -186,6 +186,8 @@
 	
 	var c = 4, c2 = 8, customC = 3; // need to auto calculate c values (or allow people to change them)
 	
+	var cxMin = -20, cxMax = 20, cyMin = -20, cyMax = 20; //x and y range for customC (vertexarray3) so that users can see contours beyond graph limit
+	
 	var displayContourFunc = function ()
 	{
 		f = Parser.parse( functionText ).toJSFunction( ['x','y'] );
@@ -219,7 +221,7 @@
 		vertexArray3 = [];
 		edgeArray3 = [];
 		
-		vertexArray3 = marchingSquares( xMin, xMax, yMin, yMax, f, customC, 256 );
+		vertexArray3 = marchingSquares( cxMin, cxMax, cyMin, cyMax, f, customC, 256 );
 		
 		for (var n = 0; n < vertexArray3.length; n += 2)
 		{
@@ -414,7 +416,7 @@
 	folder0.open();
 	
 
-	var customCGUI = folder0.add( this, 'customC' ).min(-10).max(10).step(1).name('z = c = ');
+	var customCGUI = folder0.add( this, 'customC' ).min(cxMin).max(cxMax).step(0.1).name('z = c = ');
 	customCGUI.onFinishChange( displayContourFunc );
 	
 	var graphViewVisibleGUI = gui.add( this, "graphViewVisible" ).name("View graph").onChange(

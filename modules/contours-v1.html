@@ -141,21 +141,39 @@
 			}
 		);
 		
+		//autofit the scale of the graph so it fits to the screen nicely
 		if (zAutofit)
 		{
 			var xStep = (xMax - xMin) / 256;
 			var yStep = (yMax - yMin) / 256;
 			var zSmallest = f(xMin, yMin);
-			var zBiggest  = f(xMin, yMin);
+			var zBiggest  = f(xMax, yMax);
+			
+			//for every possible x & combination, find the smallest & biggest z values
+			//infinity check is a must, otherwise when the equation results in infinity (eg divide by zero) then the graph cannot be plotted
+			//when the z value is infinite, we can assign our own value to scale the graph nicely (this is optional) 
+
 			for (var x = xMin; x <= xMax; x += xStep)
 			{
 				for (var y = yMin; y <= yMax; y += yStep)
 				{
 					var z = f(x,y);
-					if (z < zSmallest) zSmallest = z;
-					if (z > zBiggest)  zBiggest  = z;
+					if (z <= zSmallest && isFinite(z) == true){
+						zSmallest = z;
+					} else if (z <= zSmallest && isFinite(z) == false){ //optional
+						zSmallest = -256; //it can be any number since it's infinite
+					}
+					
+					if (z >= zBiggest && isFinite(z) == true) {
+						zBiggest = z;
+					} else if (z >= zBiggest && isFinite(z) == false){ //optional
+						zBiggest = 256; //it can be any number since it's infinite
+					}
 				}
 			}
+			
+			// change the global zMin var value to follow the smallest possible z val and
+			// global zMax var value to follow the biggest possible z val
 			zMin = zSmallest;
 			zMax = zBiggest;
 		}
